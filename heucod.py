@@ -128,6 +128,7 @@ class HeucodEventType(Enum):
 class HeucodEventJsonEncoder(json.JSONEncoder):
     def default(self, obj):  # pylint: disable=E0202
         def to_camel(key):
+            # Convert the attribtues names from snake case (Python "default") to camel case.
             return ''.join([key.split('_')[0].lower(), *map(str.title, key.split('_')[1:])])
 
         if isinstance(obj, HeucodEvent):
@@ -179,9 +180,11 @@ class HeucodEvent:
     # --------------------  General event properties --------------------
     # The unique ID of the event. Usually a GUID or UUID but one is free to choose.
     id_: Union[UUID, str] = None
-    # The type of sensor used. This should prefaribly match the name of the "class" of the device
+    # The type of the event. This should preferably match the name of the "class" of the device
     # following the HEUCOD ontology in enumeration HeucodEventType.
     event_type: str = None
+    # The type of the event as an integer. This should prefaribly match the name of the "class" of
+    # the device following the HEUCOD ontology in enumeration HeucodEventType.
     event_type_enum: int = None
     # This field supports adding a prose description of the event - which can e.g. by used for
     # audit and logging purposes.
@@ -285,6 +288,10 @@ class HeucodEvent:
         if not self.json_encoder:
             raise TypeError("A converter was not specified. Use the converter attribute to do so.")
 
+        # The dumps function looks tries to serialize the JSON string based in the JSON encoder that
+        # is passed in the second argument. In this case, it will be the class HeucodEventJsonEncoder,
+        # that inherits json.JSONEncoder. It has only the default() function this is called by
+        # dumps() when serializing the class.
         return json.dumps(self, cls=self.json_encoder)
 
 
@@ -293,6 +300,9 @@ if __name__ == "__main__":
     # as false, since it doesn't detect movement. Once it detects movement, it reports occupancy = true.
     event_bed_occupancy = HeucodEvent()
     event_bed_occupancy.id_ = "0001"
+    # In this example, yo ucan use the already provided HeucodEventType values to indicate what is
+    # the type of the event. Using them can imporove integration with other clients/servers since
+    # all of them are usign a standard values.
     event_bed_occupancy.event_type = HeucodEventType.BedOccupancyEvent
     event_bed_occupancy.event_type_enum = int(HeucodEventType.BedOccupancyEvent)
     event_bed_occupancy.timestamp = datetime.now(tz=timezone.utc)
@@ -309,6 +319,9 @@ if __name__ == "__main__":
     # an occupancy = false in the value attribute.
     event_leave_kitchen = HeucodEvent()
     event_leave_kitchen.id_ = "0002"
+    # In this example, yo ucan use the already provided HeucodEventType values to indicate what is
+    # the type of the event. Using them can imporove integration with other clients/servers since
+    # all of them are usign a standard values.
     event_leave_kitchen.event_type = HeucodEventType.RoomMovementEvent
     event_leave_kitchen.event_type_enum = int(HeucodEventType.RoomMovementEvent)
     event_leave_kitchen.timestamp = datetime.now(tz=timezone.utc)
