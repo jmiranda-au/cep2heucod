@@ -1,6 +1,8 @@
+from __future__ import annotations
 import json
+import re
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dataclass_replace
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Union
@@ -129,7 +131,7 @@ class HeucodEventJsonEncoder(json.JSONEncoder):
     def default(self, obj):  # pylint: disable=E0202
         def to_camel(key):
             # Convert the attribtues names from snake case (Python "default") to camel case.
-            return ''.join([key.split('_')[0].lower(), *map(str.title, key.split('_')[1:])])
+            return "".join([key.split("_")[0].lower(), *map(str.title, key.split("_")[1:])])
 
         if isinstance(obj, HeucodEvent):
             result = deepcopy(obj.__dict__)
@@ -139,7 +141,7 @@ class HeucodEventJsonEncoder(json.JSONEncoder):
 
             for k, v in result.items():
                 # Check if the name must be changed to camel case
-                first, *others = k.split('_')
+                first, *others = k.split("_")
 
                 if first != "id" and len(others) > 0 and v is not None:
                     camel_name[k] = to_camel(k)
@@ -192,13 +194,13 @@ class HeucodEvent:
     # This field can contain advanced or composite values which are well-known to the specialized
     # vendors.
     advanced: str = None
-    # The timestamp of the event being created in  the UNIX Epoch time format.
+    # The timestamp of the event being created in the UNIX Epoch time format.
     timestamp: int = None
     # Start of the observed event.
     start_time: int = None
     # End of the observerd event.
     end_time: int = None
-    # The length of the event period - in milliseconds. for example, if a PIR sensor has detected
+    # The length of the event period - in milliseconds. For example, if a PIR sensor has detected
     # movement and it covers 90 seconds, it would be 90000 ms.
     length: int = None
     # For how long is the sensor blind, in seconds. forexample, a PIR sensor will detect movement
@@ -284,6 +286,34 @@ class HeucodEvent:
     # -------------------- Python class specific attributes --------------------
     json_encoder = HeucodEventJsonEncoder
 
+    @classmethod
+    def from_json(cls, event: str) -> HeucodEvent:
+        if not event:
+            raise ValueError("The string can't be empty or None")
+
+        try:
+            json_obj = json.loads(event)
+        except json.JSONDecodeError as ex:
+            raise ex from None
+
+        instance = cls()
+
+        # Convert the names of the JSON attributes to snake case (from camel case).
+        obj_dict = {}
+        for k, v in json_obj.items():
+            if k != "id":
+                key_tokens = re.split("(?=[A-Z])", k)
+                obj_dict["_".join([t.lower() for t in key_tokens])] = v
+            else:
+                # The id_ attribtues is an exception of the naming standard. In Python, id is a
+                # reserved word and its use for naming variables/attribtues/... should be avoided.
+                # Thus the name id_.
+                obj_dict["id_"] = v
+
+        instance = dataclass_replace(instance, **obj_dict)
+
+        return instance
+
     def to_json(self):
         if not self.json_encoder:
             raise TypeError("A converter was not specified. Use the converter attribute to do so.")
@@ -301,7 +331,7 @@ if __name__ == "__main__":
     event_bed_occupancy = HeucodEvent()
     event_bed_occupancy.id_ = "0001"
     # In this example, yo ucan use the already provided HeucodEventType values to indicate what is
-    # the type of the event. Using them can imporove integration with other clients/servers since
+    # the type of the event. Using them can improve integration with other clients/servers since
     # all of them are usign a standard values.
     event_bed_occupancy.event_type = HeucodEventType.BedOccupancyEvent
     event_bed_occupancy.event_type_enum = int(HeucodEventType.BedOccupancyEvent)
@@ -313,8 +343,7 @@ if __name__ == "__main__":
     event_bed_occupancy.patient_id = "patient-0001"
     # Get the event as JSON
     print(event_bed_occupancy.to_json())
-    
-    
+
     # Example for a PIR event that detected a person leaving the kitchen, i.e. the sensor reported
     # an occupancy = false in the value attribute.
     event_leave_kitchen = HeucodEvent()
@@ -332,3 +361,6 @@ if __name__ == "__main__":
     event_leave_kitchen.patient_id = "patient-0002"
     # Get the event as JSON
     print(event_leave_kitchen.to_json())
+    
+    event = HeucodEvent.from_json('{"timestamp": 1648473393, "value": true, "eventType": "OpenCare.EVODAY.EDL.BedOccupancyEvent", "eventTypeEnum": 82043, "patientId": "patient-0001", "deviceModel": "RTCGQ11LM", "deviceVendor": "Aqara", "gatewayId": "gateway-0001", "id": "0001"}')
+    print(event)
